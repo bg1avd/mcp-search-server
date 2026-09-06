@@ -57,6 +57,7 @@ function sseMessage(res, json) {
  * @param {boolean} [cfg.allowNoAuth]  开发态开关：无 key 时也放行。默认 false
  * @param {Function}[cfg.logger]
  * @param {Function}[cfg.dispatch]     覆盖 handleRpc（测试注入用）
+ * @param {string}  [cfg.searxngBase]  SearXNG 实例根地址（方案 A 后端：查询走它）
  * @returns {Promise<import('node:http').Server>} （返回前会完成 auth 加载 / listen）
  */
 export async function startMcpServer(cfg = {}) {
@@ -68,7 +69,11 @@ export async function startMcpServer(cfg = {}) {
     allowNoAuth = false,
     logger = (...a) => console.log(...a),
     dispatch = handleRpc,
+    searxngBase = '',
   } = cfg
+
+  // 默认 dispatch 若不支持 ctx，就包一层把后端配置传进去
+  const rpcDispatch = (msg) => dispatch(msg, { searxngBase })
 
   // ---- 鉴权策略 ----
   let authHasKeys = false
@@ -141,7 +146,7 @@ export async function startMcpServer(cfg = {}) {
       }
       let reply
       try {
-        reply = await dispatch(msg)
+        reply = await rpcDispatch(msg)
       } catch (e) {
         sendJson(res, 500, { jsonrpc: '2.0', error: { code: -32603, message: (e && e.message) || 'internal' } })
         return

@@ -53,18 +53,18 @@ test('工具枚举包含 search', async () => {
   assert.ok(j.result.tools.some((t) => t.name === 'search'))
 })
 
-test('tools/call search 返回协议合规内容（在线、容忍 DDG 波动）', async () => {
+test('tools/call search 返回协议合规内容（仅结构断言，容忍后端波动）', async () => {
   const r = await post(
     { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'search', arguments: { query: 'nodejs', count: 2 } } },
     { Authorization: `Bearer ${KEY}` }
   )
   assert.equal(r.status, 200)
   const j = await r.json()
-  const text = j.result?.content?.[0]?.text
-  assert.equal(typeof text, 'string')
-  assert.equal(j.result.content[0].type, 'text')
-  // 允许结果列表或无结果占位
-  assert.ok(text.startsWith('1. ') || text.startsWith('['))
+  const c0 = j.result?.content?.[0]
+  assert.ok(c0 && c0.type === 'text', 'content[0] 应为 text')
+  assert.equal(typeof c0.text, 'string')
+  assert.ok(c0.text.length > 0)
+  assert.equal(typeof j.result.isError, 'boolean')
 })
 
 test('通知（无 id）返回 202', async () => {

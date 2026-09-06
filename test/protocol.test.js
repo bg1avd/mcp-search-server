@@ -37,13 +37,14 @@ test('tools/call 未知工具返回错误；search 缺 query 给提示文本', a
   assert.match(txt, /query/)
 })
 
-test('tools/call search 在线路径结构完整（网络波动只接受两种输出）', async () => {
+test('tools/call search 在线路径结构完整（协议层断言，容忍后端波动）', async () => {
   const r = await handleRpc({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'search', arguments: { query: 'model context protocol', count: 2 } } })
-  // 有 isError 或 content[0].text 都行，但必须有明确结构
-  const t = r.result?.content?.[0]?.text
-  assert.equal(typeof t, 'string')
-  assert.equal(r.result.content[0].type, 'text')
-  assert.ok(t.startsWith('1. ') || t.startsWith('['))
+  // 无论被 DDG/Bing/SearXNG 限流返回何种文本，content 都应是"明确的纯文本"，并且结构稳定
+  const c0 = r.result?.content?.[0]
+  assert.ok(c0 && c0.type === 'text', '应返回 text 类型内容')
+  assert.equal(typeof c0.text, 'string')
+  assert.ok(c0.text.length > 0)
+  assert.equal(typeof r.result.isError, 'boolean')
 })
 
 test('count 越界在 runSearchTool 收敛', async () => {

@@ -78,8 +78,11 @@ async function main() {
 
     const apiKeysFile = f['api-keys-file'] || process.env.API_KEYS_FILE
 
-    console.log(`[mcp-search] serve cmd; keys(explicit)=${keys.length} apiKeysFile=${apiKeysFile || '(none)'} allowNoAuth=${allowNoAuth} port=${port}`)
-    await startMcpServer({ port, host, keys, apiKeysFile, allowNoAuth })
+    // 搜索后端：目标 SearXNG 实例（方案 A）。可用 --searxng-url 或环境变量 SEARXNG_URL。
+    const searxngBase = f['searxng-url'] || process.env.SEARXNG_URL || ''
+
+    console.log(`[mcp-search] serve cmd; keys=${keys.length} apiKeysFile=${apiKeysFile || '(none)'} searxng=${searxngBase || '(未配置→默认 bing 兜底)'} allowNoAuth=${allowNoAuth} port=${port}`)
+    await startMcpServer({ port, host, keys, apiKeysFile, allowNoAuth, searxngBase })
     return
   }
 
