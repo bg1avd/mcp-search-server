@@ -1,6 +1,6 @@
 {
   "name": "@raolin2025/mcp-search-server",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Zero-dependency Model Context Protocol (MCP) search server with API-key auth + Streamable HTTP. Backend: SearXNG (multi-engine) with Bing fallback — no paid search API.",
   "type": "module",
   "main": "src/index.js",

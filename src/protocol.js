@@ -11,9 +11,13 @@
 
 import { searxngSearch } from './searxng.js'
 import { duckduckgoSearch } from './ddg.js' // 仅供可选 duckduckgo 显式触发使用
+import { readFileSync } from 'node:fs'
+
+// 版本以 package.json 为准，避免 CLI/initialize 显示旧版本
+const pkgJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 
 export const SERVER_NAME = 'mcp-search-server'
-export const SERVER_VERSION = '1.0.0'
+export const SERVER_VERSION = pkgJson.version || '0.0.0'
 export const PROTOCOL_VERSION = '2024-11-05' // 服务器声明，兼容 streamable-http
 
 /** MCP 工具清单 */

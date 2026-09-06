@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## [0.1.2] - 2026-09-06
+
+### 🐛 修复
+- CLI / initialize 的版本号不再硬编码，改为读取 package.json（`SERVER_VERSION`），避免与发布版本不一致。
+
+### 🚀 发布
+- `@raolin2025/mcp-search-server` 已上线 npm（latest）。经实测 `npm i @raolin2025/mcp-search-server` 可正常安装并运行。
+
 ## [0.1.0] - 2026-09-06
 
 ### ✨ 首版
