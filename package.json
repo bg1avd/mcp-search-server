@@ -1,7 +1,7 @@
 {
   "name": "mcp-search-server",
   "version": "1.0.0",
-  "description": "Zero-dependency Model Context Protocol (MCP) search server with API-key auth. Scrapes DuckDuckGo — no paid search API needed.",
+  "description": "Zero-dependency Model Context Protocol (MCP) search server with API-key auth + Streamable HTTP. Backend: SearXNG (multi-engine) with Bing fallback — no paid search API.",
   "type": "module",
   "main": "src/index.js",
   "bin": {
