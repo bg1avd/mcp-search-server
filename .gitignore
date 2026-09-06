@@ -1,0 +1,5 @@
+node_modules/
+*.tgz
+apikeys.json
+*.log
+.DS_Store

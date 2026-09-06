@@ -1,0 +1,36 @@
+{
+  "name": "mcp-search-server",
+  "version": "1.0.0",
+  "description": "Zero-dependency Model Context Protocol (MCP) search server with API-key auth. Scrapes DuckDuckGo — no paid search API needed.",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "mcp-search-server": "src/cli.js"
+  },
+  "scripts": {
+    "serve": "node src/cli.js serve",
+    "keygen": "node src/cli.js keygen",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "src/"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "search",
+    "duckduckgo",
+    "scraper",
+    "zero-dependency",
+    "server"
+  ],
+  "license": "MIT",
+  "author": "bg1avd",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bg1avd/mcp-search-server.git"
+  }
+}
