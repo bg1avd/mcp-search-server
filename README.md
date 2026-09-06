@@ -1,11 +1,40 @@
 # mcp-search-server
 
+[![npm version](https://img.shields.io/npm/v/@raolin2025/mcp-search-server)](https://www.npmjs.com/package/@raolin2025/mcp-search-server)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **零依赖、可独立部署的 MCP 搜索服务器**，带 API Key 鉴权，走 **Streamable HTTP** 传输。
 **无需任何付费搜索引擎 API Key**。搜索后端默认接**自建 SearXNG**（聚合 google-cse / brave 等多源，
 失败自动回退 Bing），从而规避"部署在数据中心/云 IP 上被单引擎验证码封禁"的问题（见下"实测依据"）。
 
 适用：内网 AI 客户端（如 [cc-node](https://github.com/bg1avd/claude-code-node)）无法稳定直连 Google。
 把 SearXNG + 本服务架在一台能访问外网的机器（或挂 Cloudflare 域名 / Nginx 反代），即可零成本搜索。
+
+> **npm 安装（源码即 CLI）**
+> ```bash
+> npm i -g @raolin2025/mcp-search-server     # 提供 `mcp-search-server` 命令
+> # 或先从仓库本地直接跑（无需全局）：
+> #   git clone … && cd mcp-search-server && node src/cli.js …
+> ```
+
+---
+
+## 快速部署（三步）
+
+```bash
+# 1) 后台起一个 SearXNG 当主后端（官方镜像）
+docker run -d --name searxng -p 127.0.0.1:8809:8080 searxng/searxng:latest
+
+# 2) 生成 API key（明文只打印一次，落盘仅 sha256 摘要）
+mcp-search-server keygen --file ./apikeys.json
+
+# 3) 启动本服务器（指向 SearXNG + 加载 key）
+mcp-search-server serve --port 7397 --host 0.0.0.0 \
+     --searxng-url http://127.0.0.1:8809 --api-keys-file ./apikeys.json
+```
+
+> 无 docker 时，也可省略 SearXNG——本服务会回退到 Bing 抓取；读 ["架构 / 目录"](#架构--目录)了解后端路由。
+> 各参数含义与 Cloudflare/Nginx 反代另见下文 ["安装 / 启动"](#安装--启动) 与 ["对外暴露"](#3-对外暴露可选--cloudflare--nginx-反代)。
 
 ---
 
