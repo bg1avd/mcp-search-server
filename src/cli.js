@@ -26,6 +26,7 @@ function parseArgv(argv) {
       continue
     }
     if (a === '--allow-no-auth') { flags['allow-no-auth'] = true; continue }
+    if (a === '--no-fallback') { flags['no-fallback'] = true; continue }
     if (a.startsWith('--') && argv[i + 1] && !argv[i + 1].startsWith('--')) {
       flags[a.slice(2)] = argv[++i]
       continue
@@ -51,6 +52,8 @@ async function main() {
        --keys=<k1>[,<k2>]            # 直给 key
        # 或
        --api-keys-file ./apikeys.json # 用 keygen 生成的文件
+       [--searxng-url http://127.0.0.1:8809]  # 主后端（推荐）
+       [--no-fallback]               # 只在 SearXNG 上搜；失败如实报错，不返回降级结果
        [--allow-no-auth]             # 仅开发态；勿公网
 `)
     return
@@ -80,9 +83,11 @@ async function main() {
 
     // 搜索后端：目标 SearXNG 实例（方案 A）。可用 --searxng-url 或环境变量 SEARXNG_URL。
     const searxngBase = f['searxng-url'] || process.env.SEARXNG_URL || ''
+    // 关闭兜底：只在 SearXNG 上搜，失败就如实报错，**不返回可能降级的 Bing 结果**。
+    const noFallback = Boolean(f['no-fallback'] || process.env.NO_FALLBACK)
 
-    console.log(`[mcp-search] serve cmd; keys=${keys.length} apiKeysFile=${apiKeysFile || '(none)'} searxng=${searxngBase || '(未配置→默认 bing 兜底)'} allowNoAuth=${allowNoAuth} port=${port}`)
-    await startMcpServer({ port, host, keys, apiKeysFile, allowNoAuth, searxngBase })
+    console.log(`[mcp-search] serve cmd; keys=${keys.length} apiKeysFile=${apiKeysFile || '(none)'} searxng=${searxngBase || '(未配置→默认 bing 兜底)'} allowNoAuth=${allowNoAuth} noFallback=${noFallback} port=${port}`)
+    await startMcpServer({ port, host, keys, apiKeysFile, allowNoAuth, searxngBase, noFallback })
     return
   }
 

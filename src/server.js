@@ -58,6 +58,7 @@ function sseMessage(res, json) {
  * @param {Function}[cfg.logger]
  * @param {Function}[cfg.dispatch]     覆盖 handleRpc（测试注入用）
  * @param {string}  [cfg.searxngBase]  SearXNG 实例根地址（方案 A 后端：查询走它）
+ * @param {boolean} [cfg.noFallback]   true = 只用 SearXNG，不降级到 Bing（宁可失败也不给降级结果）
  * @returns {Promise<import('node:http').Server>} （返回前会完成 auth 加载 / listen）
  */
 export async function startMcpServer(cfg = {}) {
@@ -70,10 +71,11 @@ export async function startMcpServer(cfg = {}) {
     logger = (...a) => console.log(...a),
     dispatch = handleRpc,
     searxngBase = '',
+    noFallback = false,
   } = cfg
 
   // 默认 dispatch 若不支持 ctx，就包一层把后端配置传进去
-  const rpcDispatch = (msg) => dispatch(msg, { searxngBase })
+  const rpcDispatch = (msg) => dispatch(msg, { searxngBase, noFallback })
 
   // ---- 鉴权策略 ----
   let authHasKeys = false

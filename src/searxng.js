@@ -71,13 +71,18 @@ export async function searxngSearch({ base, query, count = 10, region = '', fetc
       throw new Error('SearXNG 未返回 JSON（可能需开启 search.formats 含 json，或需 JS/anti-bot）')
     }
     const results = data.results || []
-    // 规整：保留 title/url/snippet 与引擎名；去掉引擎重复不必要
-    return results.slice(0, count > 0 ? count : undefined).map((r) => ({
+    // 规整：保留 title/url/snippet 与引擎名；去掉引擎重复不必要。
+    // v0.1.3：把 SearXNG 上报的 unresponsive_engines 挂在返回数组上
+    // （数组属性，不影响 length/map 等常规用法）。上层在"空结果"时用它解释原因：
+    // 实测长这样 —— [["brave","Suspended: too many requests"],["duckduckgo","CAPTCHA"]]
+    const rows = results.slice(0, count > 0 ? count : undefined).map((r) => ({
       title: r.title || '',
       url: r.url || '',
       snippet: (r.content || '') /* searx 用 content 作摘要 */,
       engine: r.engine || '',
     }))
+    rows.unresponsive = (data.unresponsive_engines || []).map((e) => (Array.isArray(e) ? `${e[0]}(${e[1]})` : String(e)))
+    return rows
   } finally {
     clearTimeout(timer)
   }

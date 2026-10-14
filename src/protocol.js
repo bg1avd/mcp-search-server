@@ -11,6 +11,7 @@
 
 import { searxngSearch } from './searxng.js'
 import { duckduckgoSearch } from './ddg.js' // 仅供可选 duckduckgo 显式触发使用
+import { isBingRedirect, isDomainRoot } from './bing.js'
 import { readFileSync } from 'node:fs'
 
 // 版本以 package.json 为准，避免 CLI/initialize 显示旧版本
@@ -26,7 +27,8 @@ export const toolDefinitions = [
     name: 'search',
     description:
       '网页搜索（多后端：优先 SearXNG 聚合，其次必应网页版）。' +
-      '返回按相关度排序的结果；每项含 title / url / snippet。结果含实际生效的后端 engine。',
+      '返回按相关度排序的结果；每项含 title / url / snippet。结果含实际生效的后端 engine。' +
+      '若发生降级（主后端失败而走兜底）或结果质量可疑，会在开头**显式声明**，不会把降级结果伪装成正常结果。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -62,8 +64,9 @@ function normalize(args) {
 
 /**
  * 计算查询后端列表。默认"searxng 优先，bing 兜底"（联合）。
- * 显式 ctx.engine 则按其指定的逗号顺序。
- * @param {object} ctx {searxngBase, engine}
+ * 显式 ctx.engine 则按其指定的逗号顺序（此时忽略 noFallback —— 用户已明确指定）。
+ * ctx.noFallback=true 时**只**用第一个后端：宁可失败也不返回降级结果。
+ * @param {object} ctx {searxngBase, engine, noFallback}
  * @returns {string[]}
  */
 function backendPlan(ctx = {}) {
@@ -72,7 +75,7 @@ function backendPlan(ctx = {}) {
   }
   const plan = []
   if (ctx.searxngBase) plan.push('searxng')
-  plan.push('bing') // bing 总是兜底骨架（无 searxng 时即唯一主力）
+  if (!ctx.noFallback || plan.length === 0) plan.push('bing') // bing 总是兜底骨架（无 searxng 时即唯一主力）
   return plan
 }
 
@@ -80,6 +83,11 @@ function backendPlan(ctx = {}) {
 
 async function _searxBehind({ searxngBase, query, count, region, fetchImpl }) {
   const rows = await searxngSearch({ base: searxngBase, query, count, region, fetchImpl })
+  // 空结果时把"哪些引擎不可用"带出去 —— 否则使用者只看到"降级到 bing"，
+  // 完全不知道是 SearXNG 的某个上游引擎被验证码/限频挡了（实测常见）。
+  if (!rows.length && rows.unresponsive && rows.unresponsive.length) {
+    throw new Error(`无结果（上游引擎不可用：${rows.unresponsive.join('、')}）`)
+  }
   return rows
 }
 
@@ -96,10 +104,57 @@ async function _ddgBehind({ query, count, region, fetchImpl }) {
 }
 
 /**
+ * 结果集质量评估（v0.1.3）。
+ *
+ * 为什么需要：兜底后端（Bing 网页抓取）在被风控的数据中心 IP 上会返回
+ * "**看着像结果、其实没信息量**"的降级集 —— 实测长这样：
+ *
+ *   # 来源后端: bing（5 条）
+ *   1. [OpenAI | Research & Deployment](https://www.bing.com/ck/a?!&&p=…)
+ *   2. [ChatGPT](https://www.bing.com/ck/a?!&&p=…)
+ *
+ * 查询"OpenAI reasoning_effort"却只拿到 openai.com / chatgpt.com 这类**品牌首页**，
+ * 而且 URL 还是无法还原的跳转链接。这种结果如果**不声明**就端上去，
+ * 使用者会以为"搜到了"，实则被误导 —— 比直接报错更糟。
+ *
+ * 判据（保守，避免误伤正常搜索）：
+ *   · 有 URL 仍是无法解码的 Bing 跳转链接 → 下游拿不到真实地址 → degraded
+ *   · **全部**结果都是域名根路径（正常搜索几乎不会全是首页）→ degraded
+ *
+ * @param {Array<{url:string}>} rows
+ * @returns {{degraded:boolean, reason:string, redirects:number, roots:number}}
+ */
+export function assessQuality(rows = []) {
+  const total = rows.length
+  if (!total) return { degraded: false, reason: '', redirects: 0, roots: 0 }
+  const redirects = rows.filter((r) => isBingRedirect(r.url)).length
+  const roots = rows.filter((r) => isDomainRoot(r.url)).length
+  if (redirects > 0) {
+    return { degraded: true, reason: `${redirects}/${total} 条的地址是无法还原的 Bing 跳转链接`, redirects, roots }
+  }
+  if (roots === total) {
+    return { degraded: true, reason: `全部 ${total} 条都是域名首页（没有具体页面）`, redirects, roots }
+  }
+  return { degraded: false, reason: '', redirects, roots }
+}
+
+/** 结果第一行带后端说明；降级时**必须**显式声明，避免把垃圾当正常结果 */
+function backendHeader(eng, rows, { notes = [], quality = null } = {}) {
+  const lines = [`# 来源后端: ${eng}（${rows.length} 条）`]
+  if (notes.length) {
+    lines.push(`> ⚠️ 主后端未返回结果，已降级到 **${eng}**。原因：${notes.join('；')}`)
+  }
+  if (quality && quality.degraded) {
+    lines.push(`> ⚠️ **结果质量可疑**：${quality.reason}。兜底后端在被风控的 IP 上常出现这种情况，请核对后再引用。`)
+  }
+  return lines.join('\n') + '\n\n'
+}
+
+/**
  * 执行 search（带后端 failover）。
  * 遍历 backendPlan 直到某后端返回 ≥1 条；全失败则返回带 engine 信息的错误文本。
  * @param {object} args
- * @param {object} [ctx] {searxngBase, engine, fetchImpl}
+ * @param {object} [ctx] {searxngBase, engine, fetchImpl, noFallback}
  */
 export async function runSearch(args = {}, ctx = {}) {
   const { query, count, region } = normalize(args)
@@ -116,11 +171,12 @@ export async function runSearch(args = {}, ctx = {}) {
       else return { text: `[unknown backend: ${eng}]`, isError: true }
 
       if (rows && rows.length) {
-        const header = backendHeader(eng, rows)
+        const quality = assessQuality(rows)
+        const header = backendHeader(eng, rows, { notes, quality })
         const body = rows.slice(0, count)
           .map((r, i) => `${i + 1}. [${r.title}](${r.url})\n   ${r.snippet || ''}${r.engine ? `\n   (engine: ${r.engine})` : ''}`)
           .join('\n\n')
-        return { text: header + body, engine: eng, isError: false }
+        return { text: header + body, engine: eng, isError: false, degraded: quality.degraded, notes }
       }
       // 空结果：记一笔并试下一后端
       notes.push(`[${eng}] no result`)
@@ -129,12 +185,7 @@ export async function runSearch(args = {}, ctx = {}) {
     }
   }
   const detail = notes.join('; ')
-  return { text: `[search unavailable] 尝试 ${plan.join(' + ')} 均未成功\n${detail}`, engine: plan.join('/'), isError: true }
-}
-
-/** 结果第一行带后端说明，便于使用者判断来源 */
-function backendHeader(eng, rows) {
-  return `# 来源后端: ${eng}（${rows.length} 条）\n\n`
+  return { text: `[search unavailable] 尝试 ${plan.join(' + ')} 均未成功\n${detail}`, engine: plan.join('/'), isError: true, notes }
 }
 
 /**
